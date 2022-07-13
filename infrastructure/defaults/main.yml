@@ -1,3 +1,7 @@
 deployment_path: "~/Infrastructure"
+<<<<<<< HEAD
 git_repository: "https://github.com/ppiotr1212/Infrastructure.git"
+=======
+git_repository: "https://github.com/Panda-Academy-Core-2-0/Infrastructure"
+>>>>>>> 73240cbc7ab845d4b511c0ad7c4c269a0537af46
 git_branch: "main"
