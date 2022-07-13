@@ -1,0 +1,82 @@
+# Based on sonarqube ansible role https://github.com/lean-delivery/ansible-role-sonarqube
+- name: Wait for sonarqube to be healthy
+  uri:
+    url: '{{ sonar_check_url }}/api/system/status'
+    method: GET
+    validate_certs: false
+  retries: 120
+  delay: 2
+  register: result
+  until: result.status == 200
+
+- name: Verify login with old password
+  uri:
+    url: '{{ sonar_check_url }}/api/authentication/login'
+    method: POST
+    force_basic_auth: true
+    user: '{{ sonar_web_user }}'
+    password: '{{ sonar_web_old_password }}'
+    body: 'login={{ sonar_web_user }}&password={{ sonar_web_old_password }}'
+    body_format: form-urlencoded
+    validate_certs: false
+    status_code:
+      - 200
+      - 401
+  retries: 120
+  delay: 2
+  register: login_result
+  until: login_result.status != 404
+
+- name: Update sonar web password
+  uri:
+    url: '{{ sonar_check_url }}/api/users/change_password'
+    method: POST
+    force_basic_auth: true
+    user: '{{ sonar_web_user }}'
+    password: '{{ sonar_web_old_password }}'
+    body: 'login={{ sonar_web_user }}&password={{ sonar_web_password }}&previousPassword={{ sonar_web_old_password }}'
+    body_format: form-urlencoded
+    validate_certs: false
+    status_code: 204
+  when:
+    - login_result.status == 200
+
+- name: Create projects
+  uri:
+    url: '{{ sonar_check_url }}/api/projects/create'
+    method: POST
+    force_basic_auth: true
+    user: '{{ sonar_web_user }}'
+    password: '{{ sonar_web_password }}'
+    body: 'name={{ item }}&project={{ item }}&visibility=public'
+    body_format: form-urlencoded
+    validate_certs: false
+    status_code:
+      - 200
+      - 400
+  with_items: "{{ sonar_projects }}"
+
+- name: Create jenkins webhooks
+  uri:
+    url: '{{ sonar_check_url }}/api/webhooks/create'
+    method: POST
+    force_basic_auth: true
+    user: '{{ sonar_web_user }}'
+    password: '{{ sonar_web_password }}'
+    body: 'name={{ sonar_jenkins_webhook_name }}&url={{ sonar_jenkins_webhook_url }}&project={{ item }}'
+    body_format: form-urlencoded
+    validate_certs: false
+  with_items: "{{ sonar_projects }}"
+
+- name: Disable authentication for execution of projects
+  uri:
+    url: '{{ sonar_check_url }}/api/settings/set'
+    method: POST
+    force_basic_auth: true
+    user: '{{ sonar_web_user }}'
+    password: '{{ sonar_web_password }}'
+    body: 'key=sonar.forceAuthentication&value=false'
+    body_format: form-urlencoded
+    validate_certs: false
+    status_code:
+      - 204
